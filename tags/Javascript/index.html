@@ -1,0 +1,374 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+  <meta charset="utf-8">
+  
+  <title>Javascript | Flippidy Bits</title>
+  <meta name="author" content="Aaron Smith">
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+
+  
+  <meta property="og:site_name" content="Flippidy Bits"/>
+
+  
+    <meta property="og:image" content="undefined"/>
+  
+
+  <link href="/favicon.png" rel="icon">
+  <link rel="alternate" href="/atom.xml" title="Flippidy Bits" type="application/atom+xml">
+  <link rel="stylesheet" href="/css/style.css" media="screen" type="text/css">
+  <!--[if lt IE 9]><script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script><![endif]-->
+  <script src="//ajax.googleapis.com/ajax/libs/jquery/1.8/jquery.min.js"></script>
+  
+<script type="text/javascript">
+  var _gaq = _gaq || [];
+  _gaq.push(['_setAccount', 'UA-41228204-1']);
+  _gaq.push(['_trackPageview']);
+
+  (function() {
+    var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+    ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+    var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+  })();
+</script>
+
+</head>
+
+
+<body>
+  <header id="header" class="inner"><div class="alignleft">
+  <h1><a href="/">Flippidy Bits</a></h1>
+  <h2><a href="/">Aaron Smith's blog and open source trampoline.</a></h2>
+</div>
+<nav id="main-nav" class="alignright">
+  <ul>
+    
+      <li><a href="/">Home</a></li>
+    
+      <li><a href="/archives">Archives</a></li>
+    
+  </ul>
+  <div class="clearfix"></div>
+</nav>
+<div class="clearfix"></div></header>
+  <div id="content" class="inner">
+    <div id="main-col" class="alignleft"><div id="wrapper">
+<h2 class="archive-title tag">Javascript</h2>
+
+
+  
+    <article class="post">
+  
+  <div class="post-content">
+    <header>
+      
+        <div class="icon"></div>
+        <time datetime="2013-05-26T02:49:54.000Z"><a href="/2013/05/25/building-minification-safe-angular.js-applications/">May 25 2013</a></time>
+      
+      
+  
+    <h1 class="title"><a href="/2013/05/25/building-minification-safe-angular.js-applications/">Building minification-safe Angular.js applications</a></h1>
+  
+
+    </header>
+    <div class="entry">
+      
+        <p>The first time I pulled up <a href="http://www.sublimetext.com/" title="Sublime Text 2 really is the best text editor out there (sorry vim).">my text editor</a> and starting working with <a href="http://www.angularjs.org" title="Really, a great framework.">Angular.js</a> minifcation wasn&#39;t on my mind. Playing with Angular&#39;s cool features took precidence, and dependency injection was a very new concept to me. Of course, as my application grew and I began to think about compiling and compressing my javascript, I was presented with a fun plethora of javascript errors and missing providers. What happened? It all comes down to dependency injection and the way Angular handles internal dependencies.  </p>
+<p>You see, when you create a controller, directive, modules, service, etc. (basically anything where you can inject dependencies) Angular runs the parameters of your function through its registered components and looks for matches.</p>
+<figure class="highlight lang-javascript"><figcaption><span>Controller creation in Angular.js </span></figcaption><table><tr><td class="gutter"><pre>1
+2
+3
+</pre></td><td class="code"><pre><span class="keyword">var</span> myController = <span class="keyword">function</span>($scope, $http) {
+  <span class="comment">//We included $scope and the $http service into our controller.</span>
+}
+</pre></td></tr></table></figure>
+
+<p>In this example, Angular automatically found $scope and $http and included them as parameters into your controller. Using custom services is very similar:</p>
+<figure class="highlight lang-javascript"><figcaption><span>Controller creation in Angular.js with a custom server </span></figcaption><table><tr><td class="gutter"><pre>1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+</pre></td><td class="code"><pre>
+<span class="comment">//Somewhere else:</span>
+myModule = angular.module(<span class="string">'myModule'</span>), [ <span class="comment">//Module dependencies ];</span>
+
+<span class="comment">//My service creation</span>
+myModule
+  .service(<span class="string">'myService'</span>, [<span class="keyword">function</span>() {
+    <span class="keyword">return</span> {
+      saySomething : <span class="keyword">function</span>() { console.log(<span class="string">"Something"</span>); }
+    }
+  }])
+
+<span class="keyword">var</span> myController = <span class="keyword">function</span>($scope, $http, myService) {
+  <span class="comment">//We included $scope, $http, and myService into the controller.</span>
+
+  myService.saySomething() <span class="comment">//"Something"</span>
+}
+</pre></td></tr></table></figure>
+
+<p>Did you catch the special sauce in that service declaration? If not, don&#39;t worry, we&#39;ll get there ;).  </p>
+<p>This is how most of us learn to use Angular, and it works great until we try to run it through uglify or minify to compress the code. If you know how minifcation works, it should be pretty obvious what happens. The first example above may compile to look a little like this (I&#39;ve expanded the code back to readable JS to make it readable):</p>
+<figure class="highlight lang-javascript"><figcaption><span>Minification output of our controller above </span></figcaption><table><tr><td class="gutter"><pre>1
+2
+3
+</pre></td><td class="code"><pre><span class="keyword">var</span> myController = <span class="keyword">function</span>(a, b) {
+  <span class="comment">//This will throw an error at runtime becasue 'a' is not a valid dependency.</span>
+}
+</pre></td></tr></table></figure>
+
+<p>Turns out this breaks everything. The solution for controllers is different than that of modules. For controllers, there is a simple way to make your code minification-safe:</p>
+<figure class="highlight lang-javascript"><figcaption><span>Minification-safe controller declaration </span></figcaption><table><tr><td class="gutter"><pre>1
+2
+3
+4
+5
+6
+</pre></td><td class="code"><pre><span class="keyword">var</span> myController = <span class="keyword">function</span>(anyVariableName, $http) {
+  <span class="comment">//We included $scope and the $http service into our controller.</span>
+  <span class="comment">//Since we set up the $inject attribute on our controller, it doesn't matter what variable names we use.</span>
+}
+
+myController.$inject = [<span class="string">'$scope'</span>, <span class="string">'$http'</span>]
+</pre></td></tr></table></figure>
+
+<p>Even when you minify this and &#39;anyVariableName&#39; changes to &#39;a&#39; this code will work exactly the way it was intended to.  </p>
+<p>Remember when I mentioned the special sauce in the service declaration above? As it turns out, most new Angular users will define their modules, services, directives, and factories just like the documentation tells them:</p>
+<figure class="highlight lang-javascript"><figcaption><span>Factory declaration straight from the Angular.js docs </span><a href="http://docs.angularjs.org/guide/module">Angular.js Module Docs</a></figcaption><table><tr><td class="gutter"><pre>1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+</pre></td><td class="code"><pre>
+angular.module(<span class="string">'greetMod'</span>, []).
+ 
+  factory(<span class="string">'alert'</span>, <span class="keyword">function</span>($window) {
+    <span class="keyword">return</span> <span class="keyword">function</span>(text) {
+      $window.alert(text);
+    }
+  }).
+ 
+  value(<span class="string">'salutation'</span>, <span class="string">'Hello'</span>).
+ 
+  factory(<span class="string">'greet'</span>, <span class="keyword">function</span>(alert, salutation) {
+    <span class="keyword">return</span> <span class="keyword">function</span>(name) {
+      alert(salutation + <span class="string">' '</span> + name + <span class="string">'!'</span>);
+    }
+  });
+
+</pre></td></tr></table></figure>
+
+<p>But wait... won&#39;t we have the same problems we had with our first controller? How will the factory &#39;alert&#39; know that $window is $window when its minified to &#39;a&#39;? How will &#39;greet&#39; know to access &#39;alert&#39;? Well, they won&#39;t, and it will break. This is where the docs can send you in the wrong direction if you don&#39;t read them carefully. The correcy way to initialize this factory and retain the ability to minify the javascript is a small but powerful change:</p>
+<figure class="highlight lang-javascript"><figcaption><span>The same factory declaration done right </span></figcaption><table><tr><td class="gutter"><pre>1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+</pre></td><td class="code"><pre>angular.module(<span class="string">'greetMod'</span>, []).
+ 
+  factory(<span class="string">'alert'</span>, [<span class="string">'$window'</span>, <span class="keyword">function</span>($window) {
+    <span class="keyword">return</span> <span class="keyword">function</span>(text) {
+      $window.alert(text);
+    }
+  }]).
+ 
+  value(<span class="string">'salutation'</span>, <span class="string">'Hello'</span>).
+ 
+  factory(<span class="string">'greet'</span>, [<span class="string">'alert'</span>, <span class="string">'salutation'</span>, <span class="keyword">function</span>(alert, salutation) {
+    <span class="keyword">return</span> <span class="keyword">function</span>(name) {
+      alert(salutation + <span class="string">' '</span> + name + <span class="string">'!'</span>);
+    }
+  }]);
+
+</pre></td></tr></table></figure>
+
+<p>Try and spot the difference. We&#39;ve initialized our factory function() inside an array preceded by each dependency as string literals in quotes. Its a simple change that will save you time and effort.  </p>
+<p>Below are examples for declaring any type of dependency-injected part of Angular.</p>
+<figure class="highlight lang-javascript"><figcaption><span>Mini-safe declarations </span></figcaption><table><tr><td class="gutter"><pre>1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+</pre></td><td class="code"><pre><span class="comment">//Controllers</span>
+<span class="keyword">var</span> myController = <span class="keyword">function</span>(anyVariableName, $http) {
+  
+}
+
+myController.$inject = [<span class="string">'$scope'</span>, <span class="string">'$http'</span>]
+
+<span class="comment">//Modules</span>
+<span class="keyword">var</span> myModule = angular.module(<span class="string">'myModule'</span>, [ <span class="comment">//Dependencies go here as an array of strings.])</span>
+
+<span class="comment">//Services</span>
+myModule.service(<span class="string">'serviceName'</span>, [<span class="string">'$http'</span>, <span class="string">'$location'</span>, <span class="keyword">function</span>($http, $location) {
+  
+
+}])
+
+<span class="comment">//Directives</span>
+myModule.directive(<span class="string">'myDirective'</span>, [<span class="string">'$http'</span>, <span class="string">'$location'</span>, <span class="keyword">function</span>($http, $location) {
+  
+
+}])
+
+<span class="comment">//Factories</span>
+myModule.factory(<span class="string">'factoryName'</span>, [<span class="string">'$http'</span>, <span class="string">'$location'</span>, <span class="keyword">function</span>($http, $location) {
+  
+
+}])
+
+<span class="comment">//Of course those last 3 are very similar. Its as if they did that on purpose :)</span>
+</pre></td></tr></table></figure>
+
+<p>There you have it. Use the format above and you&#39;ll never have to worry about minifying your wonderful Angular.js code again.</p>
+<p><i>Thanks for reading. Comment &amp;&amp; / || share if you found this helpful, or want to laugh with someone about it.</i></p>
+
+      
+    </div>
+    <footer>
+      
+        
+          <div class="alignleft">
+            <a href="/2013/05/25/building-minification-safe-angular.js-applications/#more" class="more-link">Read More</a>
+          </div>
+        
+        
+      
+      <div class="clearfix"></div>
+    </footer>
+  </div>
+</article>
+
+
+  
+
+  <nav id="pagination">
+  
+  
+  <div class="clearfix"></div>
+</nav>
+</div></div>
+    <aside id="sidebar" class="alignright">
+  <div class="search">
+  <form action="//google.com/search" method="get" accept-charset="utf-8">
+    <input type="search" name="q" results="0" placeholder="Search">
+    <input type="hidden" name="q" value="site:yoursite.com">
+  </form>
+</div>
+
+  
+
+  
+<div class="widget tag">
+  <h3 class="title">Tags</h3>
+  <ul class="entry">
+  
+    <li><a href="/tags/Angular.js/">Angular.js</a><small>1</small></li>
+  
+    <li><a href="/tags/Javascript/">Javascript</a><small>1</small></li>
+  
+  </ul>
+</div>
+
+
+  
+
+</aside>
+    <div class="clearfix"></div>
+  </div>
+  <footer id="footer" class="inner"><div class="alignleft">
+  
+  &copy; 2013 Aaron Smith
+  
+</div>
+<div class="clearfix"></div></footer>
+  <script src="/js/jquery.imagesloaded.min.js"></script>
+<script src="/js/gallery.js"></script>
+
+
+<script type="text/javascript">
+var disqus_shortname = 'flippidybits';
+
+(function(){
+  var dsq = document.createElement('script');
+  dsq.type = 'text/javascript';
+  dsq.async = true;
+  dsq.src = '//' + disqus_shortname + '.disqus.com/count.js';
+  (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
+}());
+</script>
+
+
+
+<link rel="stylesheet" href="/fancybox/jquery.fancybox.css" media="screen" type="text/css">
+<script src="/fancybox/jquery.fancybox.pack.js"></script>
+<script type="text/javascript">
+(function($){
+  $('.fancybox').fancybox();
+})(jQuery);
+</script>
+
+</body>
+</html>
